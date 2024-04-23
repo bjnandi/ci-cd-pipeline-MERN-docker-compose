@@ -1,0 +1,29 @@
+name: EC2 CD Pipeline on AWS
+
+on:
+  workflow_run:
+    workflows: ["Docker CI for Docker Hub Pipeline"]
+    types:
+      - completed
+
+jobs:
+  ec2-cd:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH into EC2 instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+         
+            cd ci-cd-pipeline-MERN-docker-compose
+          
+            sudo IMAGE_TAG=$((${{github.run_number }}+1)) docker-compose up -d --scale frontend=2 --scale backend=2 --no-recreate
+            sudo docker rm -f $(sudo docker ps -q | xargs sudo docker inspect --format='{{.Name}}' | grep frontend | tail -n 1) 
+            sudo docker rm -f $(sudo docker ps -q | xargs sudo docker inspect --format='{{.Name}}' | grep backend | tail -n 1)
+
+            sudo docker exec $(sudo docker ps -q | xargs sudo docker inspect --format='{{.Name}}' | grep nginx) nginx -s reload
